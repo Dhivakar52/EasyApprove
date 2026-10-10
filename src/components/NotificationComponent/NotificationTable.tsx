@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { X } from "lucide-react";
 import { DataTable } from "@/common/Datatable";
@@ -9,7 +9,7 @@ import TableToolbarActions from "@/common/TableToolbarActions";
 import { exportToCsv } from "@/lib/utils";
 import { Field, SelectField } from "@/components/FormPrimitives";
 import { useTable } from "@/hooks/useTable";
-import { MOCK_NOTIFICATIONS, type SystemNotification } from "@/mocks/notifications.mock";
+import type { SystemNotification } from "@/mocks/notifications.mock";
 
 const getTypeColor = (type: string) => {
   switch (type) {
@@ -33,8 +33,22 @@ const typeOptions = [
   "Nomination Approved",
 ];
 
+import { nominationService } from "@/services/nominationService";
+
 const NotificationTable = () => {
-  const [notifications] = useState<SystemNotification[]>(MOCK_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<SystemNotification[]>(() =>
+    nominationService.getNotifications()
+  );
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setNotifications(nominationService.getNotifications());
+    };
+    window.addEventListener("easyapprove_notifications_updated", handleUpdate);
+    return () => {
+      window.removeEventListener("easyapprove_notifications_updated", handleUpdate);
+    };
+  }, []);
 
   const {
     search,

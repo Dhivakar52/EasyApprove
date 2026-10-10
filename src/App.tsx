@@ -23,6 +23,7 @@ import AwardManagement from './components/Award/AwardManagement';
 import Login from './pages/auth/Login/LoginPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import ErrorBoundary from './components/ErrorBoundary';
+import { Toaster } from './components/ui/sonner';
 import type { UserRole } from './dataTypes/roles';
 import { getAllowedRoles } from './config/menu.config';
 import { adminSubPageRoles } from './routes/routes.config';
@@ -71,6 +72,7 @@ const App: React.FC = () => {
 
   return (
     <ErrorBoundary>
+      <Toaster />
       <Router>
         <Routes>
           {/* Public login route */}

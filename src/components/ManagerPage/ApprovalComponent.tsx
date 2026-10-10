@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { X, Eye, Check, XCircle } from "lucide-react";
+import { X, Eye, Check, XCircle, Clock, CheckCircle2 } from "lucide-react";
 import { DataTable } from "@/common/Datatable";
 import { TableSearch } from "@/common/TableSearch";
 import { Pagination } from "@/common/Pagination";
@@ -10,35 +10,68 @@ import TableToolbarActions from "@/common/TableToolbarActions";
 import { exportToCsv } from "@/lib/utils";
 import { Field, SelectField } from "@/components/FormPrimitives";
 import { useTable } from "@/hooks/useTable";
-import { MOCK_APPROVAL_NOMINATIONS, type ApprovalNomination } from "@/mocks/nominations.mock";
-import ApprovalPanel from "./ApprovalPanel";
+import ApprovalPanel, { type ApprovalNominationItem } from "./ApprovalPanel";
+import { nominationService, DEPARTMENTS } from "@/services/nominationService";
+import type { NominationStatus } from "@/dataTypes/nomination";
+import type { UserRole } from "@/dataTypes/roles";
 
-const statusColors: Record<ApprovalNomination["status"], string> = {
+const statusColors: Record<string, string> = {
   Pending: "bg-orange-100 text-orange-800",
-  Approved: "bg-green-100 text-green-800",
+  "In Review": "bg-blue-100 text-blue-800",
+  "Under Review": "bg-yellow-100 text-yellow-800",
+  Approved: "bg-emerald-100 text-emerald-800",
   Rejected: "bg-red-100 text-red-800",
 };
 
-const entityOptions = [
-  "SRMAP",
-  "SRM MHS",
-  "SRM Tech",
-  "PT",
-  "SRM Sikkim",
-  "SRM Holdings",
-  "SRM University",
-  "SRM Hospital",
-  "SRM Research",
-  "SRM Global",
-];
-
-const contestOptions = ["Self Nomination", "Nominate Others"];
-const statusOptions = ["Pending", "Approved", "Rejected"];
+const contestOptions = ["Project", "Travel Expenses"];
+const statusOptions = ["Pending", "In Review", "Approved", "Rejected"];
 
 const ApprovalComponent = () => {
-  const [nominations] = useState<ApprovalNomination[]>(MOCK_APPROVAL_NOMINATIONS);
-  const [selectedNomination, setSelectedNomination] = useState<ApprovalNomination | null>(null);
+  const mapNominationsToApproval = (): ApprovalNominationItem[] => {
+    const list = nominationService.getNominations();
+    return list.map((item) => ({
+      id: item.id,
+      nominee: item.assignedEmployee || item.nominee,
+      entity: item.department || item.entity,
+      contest: item.nominationType || "Project",
+      date: item.submittedDate || "07/20/2025",
+      status: item.status,
+    }));
+  };
+
+  const [nominations, setNominations] = useState<ApprovalNominationItem[]>(
+    mapNominationsToApproval
+  );
+  const [selectedNomination, setSelectedNomination] =
+    useState<ApprovalNominationItem | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setNominations(mapNominationsToApproval());
+    };
+    window.addEventListener("easyapprove_nominations_updated", handleUpdate);
+    return () => {
+      window.removeEventListener("easyapprove_nominations_updated", handleUpdate);
+    };
+  }, []);
+
+  const currentRole = (localStorage.getItem("userRole") as UserRole) || "manager";
+  const reviewerName =
+    currentRole === "admin"
+      ? "Administrator"
+      : currentRole === "manager"
+      ? "Manager Approver"
+      : `${currentRole.toUpperCase()}`;
+
+  const handleQuickStatus = (id: string, status: NominationStatus) => {
+    nominationService.updateNominationStatus(
+      id,
+      status,
+      "Quick status update from approvals table",
+      reviewerName
+    );
+  };
 
   const {
     search,
@@ -59,69 +92,84 @@ const ApprovalComponent = () => {
     pageSize,
     handlePageChange,
     handlePageSizeChange,
-  } = useTable<ApprovalNomination>({
+  } = useTable<ApprovalNominationItem>({
     data: nominations,
-    searchFields: ["nominee", "entity", "contest", "id"],
+    searchFields: ["nominee", "entity", "contest", "id", "status"],
     initialPageSize: 10,
     filterPredicate: (item, filters) => {
-      if (filters.entity && item.entity.toLowerCase() !== filters.entity.toLowerCase()) {
+      if (
+        filters.entity &&
+        item.entity.toLowerCase() !== filters.entity.toLowerCase()
+      ) {
         return false;
       }
-      if (filters.contest && item.contest.toLowerCase() !== filters.contest.toLowerCase()) {
+      if (
+        filters.contest &&
+        item.contest.toLowerCase() !== filters.contest.toLowerCase()
+      ) {
         return false;
       }
-      if (filters.status && item.status.toLowerCase() !== filters.status.toLowerCase()) {
+      if (
+        filters.status &&
+        item.status.toLowerCase() !== filters.status.toLowerCase()
+      ) {
         return false;
       }
       return true;
     },
   });
 
-  const columns = useMemo<ColumnDef<ApprovalNomination>[]>(
+  const columns = useMemo<ColumnDef<ApprovalNominationItem>[]>(
     () => [
       {
         accessorKey: "id",
         header: "Nominate ID",
         cell: (info) => (
-          <span className="text-sm font-medium text-gray-900">{String(info.getValue())}</span>
+          <span className="text-xs font-bold text-gray-900 font-mono">
+            {String(info.getValue())}
+          </span>
         ),
       },
       {
         accessorKey: "nominee",
-        header: "Nominee",
+        header: "Assigned Employee",
         cell: (info) => (
-          <span className="text-sm text-gray-900">{String(info.getValue())}</span>
+          <span className="text-xs font-semibold text-emerald-800">
+            {String(info.getValue())}
+          </span>
         ),
       },
       {
         accessorKey: "entity",
-        header: "Entity",
+        header: "Entity / Department",
         cell: (info) => (
-          <span className="text-sm text-gray-900">{String(info.getValue())}</span>
+          <span className="text-xs text-gray-800">{String(info.getValue())}</span>
         ),
       },
       {
         accessorKey: "contest",
-        header: "Contest Type",
+        header: "Nomination Type",
         cell: (info) => (
-          <span className="text-sm text-gray-900">{String(info.getValue())}</span>
+          <span className="text-xs text-gray-800">{String(info.getValue())}</span>
         ),
       },
       {
         accessorKey: "date",
         header: "Submitted Date",
         cell: (info) => (
-          <span className="text-sm text-gray-900">{String(info.getValue())}</span>
+          <span className="text-xs text-gray-600">{String(info.getValue())}</span>
         ),
       },
       {
         accessorKey: "status",
         header: "Status",
         cell: (info) => {
-          const status = info.getValue() as ApprovalNomination["status"];
+          const status = String(info.getValue());
           return (
             <span
-              className={`px-3 py-1 rounded-full text-xs font-semibold ${statusColors[status]}`}
+              className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                statusColors[status] || "bg-gray-100 text-gray-800"
+              }`}
             >
               {status}
             </span>
@@ -138,24 +186,41 @@ const ApprovalComponent = () => {
               item={nom}
               actions={[
                 {
-                  label: "View",
-                  icon: <Eye className="w-4 h-4 mr-2" />,
+                  label: "Review Details",
+                  icon: <Eye className="w-4 h-4 mr-2 text-blue-600" />,
                   onClick: () => {
                     setSelectedNomination(nom);
                     setIsDetailOpen(true);
                   },
                 },
-                {
-                  label: "Approve",
-                  icon: <Check className="w-4 h-4 mr-2 text-green-600" />,
-                  onClick: () => {},
-                },
-                {
-                  label: "Reject",
-                  icon: <XCircle className="w-4 h-4 mr-2 text-red-600" />,
-                  onClick: () => {},
-                  variant: "danger",
-                },
+                ...(nom.status !== "Approved"
+                  ? [
+                      {
+                        label: "Approve",
+                        icon: <Check className="w-4 h-4 mr-2 text-emerald-600" />,
+                        onClick: () => handleQuickStatus(nom.id, "Approved"),
+                      },
+                    ]
+                  : []),
+                ...(nom.status !== "In Review"
+                  ? [
+                      {
+                        label: "Move to In Review",
+                        icon: <Clock className="w-4 h-4 mr-2 text-blue-600" />,
+                        onClick: () => handleQuickStatus(nom.id, "In Review"),
+                      },
+                    ]
+                  : []),
+                ...(nom.status !== "Rejected"
+                  ? [
+                      {
+                        label: "Reject",
+                        icon: <XCircle className="w-4 h-4 mr-2 text-red-600" />,
+                        onClick: () => handleQuickStatus(nom.id, "Rejected"),
+                        variant: "danger" as const,
+                      },
+                    ]
+                  : []),
               ]}
             />
           );
@@ -166,29 +231,37 @@ const ApprovalComponent = () => {
   );
 
   return (
-    <div className="p-6 m-5 bg-white rounded-xl shadow-md relative">
+    <div className="p-6 m-5 bg-white rounded-xl shadow-xs border border-gray-100 relative">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-baseline sm:items-center mb-4 gap-3">
         <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold text-gray-900">Nominations for Review</h2>
+          <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+            Nominations for Review
+          </h2>
           <span className="bg-slate-100 text-slate-700 text-xs px-2.5 py-0.5 rounded-full font-medium">
-            {totalRecords} Records
+            {totalRecords} Submissions
           </span>
         </div>
+
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <TableSearch
             value={search}
             onChange={setSearch}
             placeholder="Search Nominee / ID / Entity..."
             className="w-full sm:w-72"
-            inputClassName="py-1.5"
+            inputClassName="py-1.5 text-xs"
           />
-          {/* Standardized Toolbar Actions (Filter / Export / Print) */}
           <TableToolbarActions
             onOpenFilter={openFilter}
             hasActiveFilters={hasActiveFilters}
             onClearFilters={resetFilters}
-            onExport={() => exportToCsv(paginatedData as unknown as Record<string, unknown>[], "approval-nominations.csv")}
+            onExport={() =>
+              exportToCsv(
+                paginatedData as unknown as Record<string, unknown>[],
+                "approval-nominations.csv"
+              )
+            }
             exportTitle="Export Nominations"
           />
         </div>
@@ -224,10 +297,10 @@ const ApprovalComponent = () => {
       <DataTable
         columns={columns}
         data={paginatedData}
-        headerClassName="bg-gray-100"
-        headCellClassName="px-6 py-3 text-left text-sm font-semibold text-gray-600"
-        cellClassName="px-6 py-3"
-        rowClassName="hover:bg-gray-50 transition-colors"
+        headerClassName="bg-gray-50 border-b border-gray-200"
+        headCellClassName="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase"
+        cellClassName="px-6 py-3 border-b border-gray-100"
+        rowClassName="hover:bg-slate-50/60 transition-colors"
       />
 
       {/* Pagination */}
@@ -247,6 +320,9 @@ const ApprovalComponent = () => {
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
         nomination={selectedNomination}
+        onStatusUpdated={() => {
+          setNominations(mapNominationsToApproval());
+        }}
       />
 
       {/* Shared CustomPanel for Filters */}
@@ -275,7 +351,7 @@ const ApprovalComponent = () => {
               <button
                 type="button"
                 onClick={applyFilters}
-                className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors cursor-pointer"
+                className="px-4 py-2 text-xs font-semibold text-white btn-theme hover:opacity-90 rounded-lg shadow-xs transition-colors cursor-pointer"
               >
                 Apply Filters
               </button>
@@ -284,17 +360,17 @@ const ApprovalComponent = () => {
         }
       >
         <div className="space-y-4">
-          <Field label="Entity">
+          <Field label="Department / Entity">
             <SelectField
-              placeholder="All Entities"
+              placeholder="All Departments"
               value={tempFilters.entity ?? ""}
               onChange={(val) => setFilterField("entity", val)}
-              options={entityOptions}
+              options={DEPARTMENTS as unknown as string[]}
             />
           </Field>
-          <Field label="Contest Type">
+          <Field label="Nomination Type">
             <SelectField
-              placeholder="All Contest Types"
+              placeholder="All Types"
               value={tempFilters.contest ?? ""}
               onChange={(val) => setFilterField("contest", val)}
               options={contestOptions}

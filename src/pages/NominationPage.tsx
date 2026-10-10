@@ -1,16 +1,16 @@
-import  NominationComponent from '../components/NominationContent/NominationComponent'
+import NominationComponent from '../components/NominationContent/NominationComponent'
 
 
 const NominationPage = () => {
 
 
   return (
-    
-          <div className='p-5'>
-            <NominationComponent/>
-          </div>
 
-  
+    <div className='p-5'>
+      <NominationComponent />
+    </div>
+
+
   )
 }
 

@@ -16,43 +16,37 @@ interface NotificationModalProps {
   onClose: () => void;
   notifications?: Notification[];
 }
-// Default notifications data
-const defaultNotifications: Notification[] = [
-  {
-    id: '1',
-    type: 'referral',
-    title: 'Referral Request',
-    message: 'Vijay Kumar has requested your referral for the Innovation category.',
-    timeAgo: '2 minutes ago'
-  },
-  {
-    id: '2',
-    type: 'referral',
-    title: 'New Referral Request',
-    message: 'You have a new referral request from Karthik for UI/UX category.',
-    timeAgo: '10 minutes ago'
-  },
-  {
-    id: '3',
-    type: 'approval',
-    title: 'Nomination Approval Required',
-    message: 'You need to approve a nomination for Vijay Kumar in Innovation category.',
-    timeAgo: '1 hours ago'
-  },
-  {
-    id: '4',
-    type: 'approved',
-    title: 'Nomination Approved',
-    message: 'Your nomination for Vijay Kumar (Innovation) has been approved by the Manager.',
-    timeAgo: '2 hours ago'
-  }
-];
+import { nominationService } from "@/services/nominationService";
 
 const NotificationModal: React.FC<NotificationModalProps> = ({ 
   isOpen, 
   onClose, 
-  notifications = defaultNotifications 
+  notifications: propNotifications, 
 }) => {
+  const [notifications, setNotifications] = React.useState<Notification[]>([]);
+
+  React.useEffect(() => {
+    if (propNotifications && propNotifications.length > 0) {
+      setNotifications(propNotifications);
+      return;
+    }
+    const list = nominationService.getNotifications();
+    setNotifications(
+      list.map((item, idx) => ({
+        id: String(idx + 1),
+        type:
+          item.type === "Nomination Approved"
+            ? "approved"
+            : item.type === "Nomination Approval Required"
+            ? "approval"
+            : "referral",
+        title: item.title,
+        message: item.message,
+        timeAgo: item.time,
+      }))
+    );
+  }, [isOpen, propNotifications]);
+
   const handleMarkAllRead = () => {
     // Handle mark all as read logic
     console.log('Mark all notifications as read');
