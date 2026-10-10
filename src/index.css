@@ -1,0 +1,28 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap');
+
+
+@import "tailwindcss";
+@import "@radix-ui/themes/styles.css";
+
+* {
+  font-family: 'Roboto', sans-serif !important;
+}
+
+.nominate-form,
+.nominate-form input,
+.nominate-form textarea,
+.nominate-form select,
+.nominate-form [role="combobox"] {
+  border-color: #00000033 !important;
+}
+
+.btn-theme{
+    background: linear-gradient(90deg, rgb(8, 128, 94) 16%, rgb(24, 97, 174) 100%);
+    border-left: 4px solid white;
+    color: white;
+    border-radius: 9px;
+}
+
+table td{
+  font-size: 13px;
+}
